@@ -1,10 +1,8 @@
 package config
 
 import (
-	"io"
 	"os"
 	"encoding/json"
-	"log"
 )
 
 const configFileName = ".gatorconfig.json"

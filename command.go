@@ -76,8 +76,81 @@ func handlerRegister(s *state, cmd command) error {
 
   err = s.cfg.SetUser(user.Name)
   if err != nil {
-    return err
+    return err 
   }
   fmt.Printf("Created new user! Name: %v, Created At: %v, Updated At: %v, ID: %v", user.Name, user.CreatedAt, user.UpdatedAt, user.ID)
   return nil
+}
+
+func handlerReset(s *state, cmd command) error {
+  l := len(cmd.arguments)
+  if l > 0 {
+    return errors.New("Too many arguments provided (expected 0)")
+  }
+  
+  ctx := context.Background()
+
+  err := s.db.Reset(ctx)
+  if err != nil {
+    return err
+  }
+  
+  fmt.Println("Successfully reset user table")
+  return nil
+}
+
+func handlerGetUsers(s *state, cmd command) error {
+  l := len(cmd.arguments)
+  if l > 0 {
+    return errors.New("Too many arguments provided (expected 0)")
+  }
+
+  ctx := context.Background()
+
+  users, err := s.db.GetUsers(ctx)
+  if err != nil {
+    return err
+  }
+
+  for _, x := range(users) {
+    output := "* " + x.Name
+    if x.Name == s.cfg.CurrentUserName {
+      output += " (current)"
+    }
+    fmt.Println(output)
+  }
+
+  return nil
+}
+
+func handlerAggregate(s *state, cmd command) error {
+  l := len(cmd.arguments)
+  if l > 0 {
+    return errors.New("Too many arguments provided (expected 0)")
+  }
+
+  ctx := context.Background()
+  url := "https://www.wagslane.dev/index.xml"
+  feed, err := fetchFeed(ctx, url)
+  if err != nil {
+    return err
+  }
+ 
+  fmt.Println(feed)
+  return nil
+}
+
+func handlerAddFeed(s *state, cmd command) error {
+  l := len(cmd.arguments)
+  if l != 2 {
+    return errors.New("Incorrect numbers of arguments provided (expected 2)")
+  }
+
+  //Get user id
+
+  ctx := context.Background()
+  feed, err := s.db.CreateFeed(ctx, database.CreateFeedParams{uuid.New(), time.Now(), time.Now(), cmd.arguments[0], cmd.arguments[1]})
+  if err != nil {
+    return err
+  }
 }
