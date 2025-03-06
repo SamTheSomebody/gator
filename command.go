@@ -14,33 +14,59 @@ type command struct {
   arguments []string
 }
 
+type savedCommand struct {
+  f func(*state, command) error
+  targetArgumentCount int
+}
 type commands struct {
-  values map[string]func(*state, command) error
+  values map[string]savedCommand
 }
 
-func (c *commands) register(name string, f func(*state, command) error) {
-  c.values[name] = f;
+func (c *commands) register(name string, f func(*state, command) error, targetArgumentCount int) {
+  c.values[name] = savedCommand{f, targetArgumentCount}
 }
 
 func (c *commands) run(s *state, cmd command) error {
-  f, ok := c.values[cmd.name];
+  saved, ok := c.values[cmd.name];
   if !ok {
     return errors.New("Could not find command")
   }
-  err := f(s, cmd)
+
+  err := generateArgumentCountError(len(cmd.arguments), saved.targetArgumentCount)
+  if err != nil {
+    return err
+  }
+
+  err = saved.f(s, cmd)
   return err
 }
 
-func handlerLogin(s *state, cmd command) error {
-  l := len(cmd.arguments)
-  if l == 0 {
-    return errors.New("No login arguments provided (expected 1)")
-  } else if l > 1 {
-    return errors.New("Too many login arguments provided (expected 1)")
+func generateArgumentCountError(count int, target int) error {
+  if count == target {
+    return nil
   }
+  text := "Too "
+  if count > target {
+    text += "many"
+  } else {
+    text += "few"
+  }
+  text += fmt.Sprintf(" arguments provided! (received %v, expected %v)", count, target)
+  return errors.New(text)
+}
 
-  ctx := context.Background()
-  _, err := s.db.GetUser(ctx, cmd.arguments[0])
+func middlewareLoggedIn(handler func(s *state, cmd command, user database.User) error) func(*state, command) error {
+  return func(s *state, cmd command) error {
+    user, err := s.db.GetUser(context.Background(), s.cfg.CurrentUserName)
+    if err != nil {
+      return err
+    }
+    return handler(s, cmd, user)
+  }
+}
+
+func handlerLogin(s *state, cmd command) error {
+  _, err := s.db.GetUser(context.Background(), cmd.arguments[0])
   if err != nil {
     return err
   }
@@ -55,21 +81,13 @@ func handlerLogin(s *state, cmd command) error {
 }
 
 func handlerRegister(s *state, cmd command) error {
-  l := len(cmd.arguments)
-  if l == 0 {
-    return errors.New("No register arguments provided (expected 1)")
-  } else if l > 1 {
-    return errors.New("Too many register arguments provided (expected 1)")
-  }
-
-  ctx := context.Background()
-
-  _, err := s.db.GetUser(ctx, cmd.arguments[0])
+  _, err := s.db.GetUser(context.Background(), cmd.arguments[0])
   if err == nil {
     return errors.New("User already in database!")
   }
 
-  user, err := s.db.CreateUser(ctx, database.CreateUserParams{uuid.New(), time.Now(), time.Now(), cmd.arguments[0]})
+  params := database.CreateUserParams{uuid.New(), time.Now(), time.Now(), cmd.arguments[0]}
+  user, err := s.db.CreateUser(context.Background(), params)
   if err != nil {
     return err
   }
@@ -83,14 +101,7 @@ func handlerRegister(s *state, cmd command) error {
 }
 
 func handlerReset(s *state, cmd command) error {
-  l := len(cmd.arguments)
-  if l > 0 {
-    return errors.New("Too many arguments provided (expected 0)")
-  }
-  
-  ctx := context.Background()
-
-  err := s.db.Reset(ctx)
+  err := s.db.Reset(context.Background())
   if err != nil {
     return err
   }
@@ -100,14 +111,7 @@ func handlerReset(s *state, cmd command) error {
 }
 
 func handlerGetUsers(s *state, cmd command) error {
-  l := len(cmd.arguments)
-  if l > 0 {
-    return errors.New("Too many arguments provided (expected 0)")
-  }
-
-  ctx := context.Background()
-
-  users, err := s.db.GetUsers(ctx)
+  users, err := s.db.GetUsers(context.Background())
   if err != nil {
     return err
   }
@@ -124,14 +128,8 @@ func handlerGetUsers(s *state, cmd command) error {
 }
 
 func handlerAggregate(s *state, cmd command) error {
-  l := len(cmd.arguments)
-  if l > 0 {
-    return errors.New("Too many arguments provided (expected 0)")
-  }
-
-  ctx := context.Background()
   url := "https://www.wagslane.dev/index.xml"
-  feed, err := fetchFeed(ctx, url)
+  feed, err := fetchFeed(context.Background(), url)
   if err != nil {
     return err
   }
@@ -140,17 +138,65 @@ func handlerAggregate(s *state, cmd command) error {
   return nil
 }
 
-func handlerAddFeed(s *state, cmd command) error {
-  l := len(cmd.arguments)
-  if l != 2 {
-    return errors.New("Incorrect numbers of arguments provided (expected 2)")
-  }
-
-  //Get user id
-
-  ctx := context.Background()
-  feed, err := s.db.CreateFeed(ctx, database.CreateFeedParams{uuid.New(), time.Now(), time.Now(), cmd.arguments[0], cmd.arguments[1]})
+func handlerAddFeed(s *state, cmd command, user database.User) error {
+  params := database.CreateFeedParams{uuid.New(), time.Now(), time.Now(), cmd.arguments[0], cmd.arguments[1], user.ID}
+  feed, err := s.db.CreateFeed(context.Background(), params)
   if err != nil {
     return err
   }
+  fmt.Println(feed)
+
+  cmd.arguments = cmd.arguments[1:]
+  f := middlewareLoggedIn(handlerFollowFeed)
+  return f(s, cmd)
+}
+
+func handlerGetFeeds(s *state, cmd command) error {
+  feeds, err := s.db.GetFeeds(context.Background())
+  if err != nil {
+    return err
+  }
+
+  for _, feed := range feeds {
+    user, err := s.db.GetUserByID(context.Background(), feed.UserID)
+    if err != nil {
+      return err
+    }
+    fmt.Printf("%v: %v (%v)\n", feed.Name, feed.Url, user.Name)
+  }
+
+  return nil
+}
+
+func handlerFollowFeed(s *state, cmd command, user database.User) error {
+  feed, err := s.db.GetFeed(context.Background(), cmd.arguments[0])
+  if err != nil {
+    return err
+  }
+
+  params := database.CreateFeedFollowParams{uuid.New(), time.Now(), time.Now(), user.ID, feed.ID}
+  feed_follow, err := s.db.CreateFeedFollow(context.Background(), params)
+  if err != nil {
+    return err
+  }
+
+  fmt.Println(feed_follow)
+  return nil
+}
+
+func handlerGetFollowingFeeds(s *state, cmd command, user database.User) error {
+  feeds, err := s.db.GetFeedFollowsForUser(context.Background(), user.ID)
+  if err != nil {
+    return err
+  }
+
+  for _, feed := range feeds {
+    fmt.Println(feed)
+  }
+  return nil
+}
+
+func handlerUnfollowFeed(s *state, cmd command, user database.User) error {
+  params := database.RemoveFeedFollowParams{user.ID, cmd.arguments[0]}
+  return s.db.RemoveFeedFollow(context.Background(), params) 
 }

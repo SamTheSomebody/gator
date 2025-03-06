@@ -29,15 +29,19 @@ func main() {
   }
 
   commands := commands {
-    values: make(map[string]func(*state, command) error),
+    values: make(map[string]savedCommand),
   }
 
-  commands.register("login", handlerLogin)
-  commands.register("register", handlerRegister)
-  commands.register("reset", handlerReset)
-  commands.register("users", handlerGetUsers)
-  commands.register("agg", handlerAggregate)
-  commands.register("addfeed", handlerAddFeed)
+  commands.register("login", handlerLogin, 1)
+  commands.register("register", handlerRegister, 1)
+  commands.register("reset", handlerReset, 0)
+  commands.register("users", handlerGetUsers, 0)
+  commands.register("agg", handlerAggregate, 0)
+  commands.register("addfeed", middlewareLoggedIn(handlerAddFeed), 2)
+  commands.register("feeds", handlerGetFeeds, 0)
+  commands.register("follow", middlewareLoggedIn(handlerFollowFeed), 1)
+  commands.register("following", middlewareLoggedIn(handlerGetFollowingFeeds), 0)
+  commands.register("unfollow", middlewareLoggedIn(handlerUnfollowFeed), 1)
   c := createCommand()
 
   err = commands.run(&s, c)
