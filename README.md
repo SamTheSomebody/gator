@@ -1,14 +1,16 @@
 ## About the project
 
-Gator is a RSS feed aggre*gator*. It was built as a guided project for a course on [boot.dev]. It was built with Go & Postgres with help from [goose](https://github.com/pressly/goose) & [SQLC](https://sqlc.dev/)
+Gator is a RSS feed aggre*gator*. It was built as a guided project for a course on [boot.dev]. It was built with Go & Postgres with help from [goose](https://github.com/pressly/goose) & [SQLC](https://sqlc.dev/).
+
+Gator is missing some quality of life features which may or may not be adding the future.
 
 ## Getting started
 
 Here's all you need to get up and running
 
 ### Prerequisites
-**ProgresSQL v15 or later**
-**Go**
+* **ProgresSQL v15 or later**
+* **Go**
 
 ### Installation
 After downloading the gator file, run the following command:
@@ -20,6 +22,8 @@ You'll also need to create a config file named *.gatorconfig.json* in your root 
 {"db_url":"postgres://postgres:postgres@localhost:5432/gator?sslmode=disable"}
 ```
 You may need to adjust your database url depending on your operating system and postgres login details.
+
+---
 
 Alternatively you can build from source by downloading this repository and running:
 ```
