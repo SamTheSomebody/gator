@@ -131,9 +131,7 @@ func (q *Queries) GetFeedFollowsForUser(ctx context.Context, userID uuid.UUID) (
 }
 
 const removeFeedFollow = `-- name: RemoveFeedFollow :exec
-DELETE FROM feed_follows
-WHERE feed_follows.user_id = $1
-AND feed_follows.feed_id = $2
+DELETE FROM feed_follows WHERE user_id = $1 AND feed_id = $2
 `
 
 type RemoveFeedFollowParams struct {

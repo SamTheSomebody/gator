@@ -38,16 +38,17 @@ func main() {
     values: make(map[string]savedCommand),
   }
 
-  commands.register("login", handlerLogin, 1)
-  commands.register("register", handlerRegister, 1)
-  commands.register("reset", handlerReset, 0)
-  commands.register("users", handlerListUsers, 0)
-  commands.register("agg", handlerAggregate, 1)
-  commands.register("addfeed", middlewareLoggedIn(handlerAddFeed), 2)
-  commands.register("feeds", handlerGetFeeds, 0)
-  commands.register("follow", middlewareLoggedIn(handlerFollowFeed), 1)
-  commands.register("following", middlewareLoggedIn(handlerListFollowingFeeds), 0)
-  commands.register("unfollow", middlewareLoggedIn(handlerUnfollowFeed), 1)
+  commands.register("login", handlerLogin, 1, 1)
+  commands.register("register", handlerRegister, 1, 1)
+  commands.register("reset", handlerReset, 0, 0)
+  commands.register("users", handlerListUsers, 0, 0)
+  commands.register("agg", handlerAggregate, 1, 1)
+  commands.register("addfeed", middlewareLoggedIn(handlerAddFeed), 2, 2)
+  commands.register("feeds", handlerGetFeeds, 0, 0)
+  commands.register("follow", middlewareLoggedIn(handlerFollowFeed), 1, 1)
+  commands.register("following", middlewareLoggedIn(handlerListFollowingFeeds), 0, 0)
+  commands.register("unfollow", middlewareLoggedIn(handlerUnfollowFeed), 1, 1)
+  commands.register("browse", middlewareLoggedIn(handlerBrowse), 0, 1)
   c := createCommand()
 
   err = commands.run(&s, c)

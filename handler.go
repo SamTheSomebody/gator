@@ -7,6 +7,7 @@ import (
   "time"
   "context"
   "internal/database"
+  "strconv"
 )
 
 func handlerLogin(s *state, cmd command) error {
@@ -152,4 +153,35 @@ func handlerUnfollowFeed(s *state, cmd command, user database.User) error {
 
   params := database.RemoveFeedFollowParams{user.ID, feed.ID}
   return s.db.RemoveFeedFollow(context.Background(), params) 
+}
+
+func handlerBrowse(s *state, cmd command, user database.User) error {
+  limit := 2
+  if len(cmd.arguments) == 1 {
+    i, err := strconv.Atoi(cmd.arguments[0])
+    if err != nil {
+      return err
+    }
+    limit = i
+  }
+
+  params := database.GetPostsForUserParams{user.ID, int32(limit)}
+  posts, err := s.db.GetPostsForUser(context.Background(), params)
+  if err != nil {
+    return err
+  }
+  
+  fmt.Println("Retrieving posts...\n")
+
+  for _, x := range posts {
+    fmt.Printf("Post from: %v\n", x.FeedName)
+    fmt.Printf("Title: %v\n", x.Title)
+    fmt.Printf("Link: %v\n", x.Url)
+    fmt.Printf("Published: %v\n", x.PublishedAt)
+    fmt.Printf("Description: %v\n", x.Description)
+    fmt.Println("")
+  }
+
+  fmt.Printf("Retreived %v posts (requested %v)\n", len(posts), limit)
+  return nil
 }
